@@ -63,7 +63,7 @@ export function updateKvRoutes(
   name: string,
   args: RouterBaseRouteArgs,
   parent: Component,
-  routeType: "url" | "bucket" | "site",
+  routeType: "url" | "bucket" | "site" | "service",
   routeNs: string,
   pattern: {
     host: string;

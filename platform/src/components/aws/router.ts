@@ -17,10 +17,12 @@ import { cloudfront, cloudwatch, wafv2 } from "@pulumi/aws";
 import { useProvider } from "./helpers/provider";
 import { hashStringToPrettyString, physicalName } from "../naming";
 import { Bucket } from "./bucket";
+import { Service } from "./service";
 import { OriginAccessControl } from "./providers/origin-access-control";
 import { VisibleError } from "../error";
 import { RouterUrlRoute } from "./router-url-route";
 import { RouterBucketRoute } from "./router-bucket-route";
+import { RouterServiceRoute } from "./router-service-route";
 import { DurationSeconds, toSeconds } from "../duration";
 import { FunctionArn } from "./function.js";
 import { parseLambdaEdgeArn } from "./helpers/arn";
@@ -462,6 +464,77 @@ export interface RouterBucketRouteArgs extends RouteArgs {
      */
     to: Input<string>;
   }>;
+}
+
+export interface RouterServiceRouteArgs extends RouteArgs {
+  /**
+   * Rewrite the request path.
+   *
+   * @example
+   *
+   * If the route path is `/api/*` and a request comes in for `/api/users/profile`,
+   * the request path the destination sees is `/api/users/profile`.
+   *
+   * If you want to serve the route from the root, you can rewrite the request
+   * path to `/users/profile`.
+   *
+   * ```js
+   * {
+   *   rewrite: {
+   *     regex: "^/api/(.*)$",
+   *     to: "/$1"
+   *   }
+   * }
+   * ```
+   */
+  rewrite?: Input<{
+    /**
+     * The regex to match the request path.
+     */
+    regex: Input<string>;
+    /**
+     * The replacement for the matched path.
+     */
+    to: Input<string>;
+  }>;
+  /**
+   * The protocol to use when connecting to the origin.
+   *
+   * @default `"https-only"`
+   * @example
+   * ```js
+   * {
+   *   protocol: "http-only"
+   * }
+   * ```
+   */
+  protocol?: Input<"http-only" | "https-only" | "match-viewer">;
+  /**
+   * The number of seconds that CloudFront waits for a response after routing a
+   * request to the origin. Must be between 1 and 60 seconds.
+   *
+   * @default `"20 seconds"`
+   * @example
+   * ```js
+   * {
+   *   readTimeout: "60 seconds"
+   * }
+   * ```
+   */
+  readTimeout?: Input<DurationSeconds>;
+  /**
+   * The number of seconds that CloudFront should try to maintain the connection
+   * to the origin after receiving the last packet of the response. Must be
+   * between 1 and 60 seconds
+   * @default `"5 seconds"`
+   * @example
+   * ```js
+   * {
+   *   keepAliveTimeout: "10 seconds"
+   * }
+   * ```
+   */
+  keepAliveTimeout?: Input<DurationSeconds>;
 }
 
 export interface WafLoggingArgs {
@@ -2226,6 +2299,7 @@ async function handler(event) {
   }
   if (route.type === "url") setUrlOrigin(route.metadata.host, route.metadata.origin);
   if (route.type === "bucket") setS3Origin(route.metadata.domain, route.metadata.origin);
+  if (route.type === "service") setVpcOrigin(route.metadata.domain, route.metadata.vpcOriginId, route.metadata.origin);
   if (route.type === "site") {
     const response = await routeSite(route.routeNs, route.metadata);
     return response || event.request;
@@ -2642,6 +2716,112 @@ async function handler(event) {
   }
 
   /**
+   * Add a route to a Service via VPC Origin.
+   *
+   * This allows CloudFront to route traffic to a Service (ECS/Fargate) through
+   * a private VPC connection, without exposing the Service's load balancer to
+   * the public internet.
+   *
+   * :::note
+   * The Service must have a load balancer configured. The Service's load balancer
+   * will be made private (internal) automatically when routed through a VPC Origin.
+   * :::
+   *
+   * @param pattern The path prefix to match for this route.
+   * @param service The Service to route matching requests to.
+   * @param args Configure the route.
+   *
+   * @example
+   *
+   * Let's say you have a Service with a load balancer.
+   *
+   * ```ts title="sst.config.ts"
+   * const vpc = new sst.aws.Vpc("MyVpc");
+   * const cluster = new sst.aws.Cluster("MyCluster", { vpc });
+   * const service = new sst.aws.Service("MyService", {
+   *   cluster,
+   *   loadBalancer: {
+   *     rules: [{ listen: "80/http" }]
+   *   }
+   * });
+   * ```
+   *
+   * You can route to it through CloudFront using a VPC Origin.
+   *
+   * ```ts title="sst.config.ts"
+   * const router = new sst.aws.Router("MyRouter", {
+   *   domain: "example.com"
+   * });
+   *
+   * router.routeService("/api/*", service);
+   * ```
+   *
+   * You can match a pattern and route to it based on:
+   *
+   * - A path prefix like `/api/*`
+   * - A domain pattern like `api.example.com`
+   * - A combined pattern like `dev.example.com/api`
+   *
+   * For example, to match a path prefix.
+   *
+   * ```ts title="sst.config.ts"
+   * router.routeService("/api", service);
+   * ```
+   *
+   * Or match a domain.
+   *
+   * ```ts title="sst.config.ts"
+   * router.routeService("api.example.com", service);
+   * ```
+   *
+   * Or a combined pattern.
+   *
+   * ```ts title="sst.config.ts"
+   * router.routeService("dev.example.com/api", service);
+   * ```
+   *
+   * You can also rewrite the request path.
+   *
+   * ```ts title="sst.config.ts"
+   * router.routeService("/api", service, {
+   *   rewrite: {
+   *     regex: "^/api/(.*)$",
+   *     to: "/$1"
+   *   }
+   * });
+   * ```
+   *
+   * Here something like `/api/users/profile` will be routed to
+   * `/users/profile`.
+   */
+  public routeService(
+    pattern: Input<string>,
+    service: Input<Service>,
+    args?: Input<RouterServiceRouteArgs>,
+  ) {
+    all([pattern, args, this.hasInlineRoutes]).apply(
+      ([pattern, args, hasInlineRoutes]) => {
+        if (hasInlineRoutes)
+          throw new VisibleError(
+            "Cannot use both `routes` and `.routeService()` function to add routes.",
+          );
+
+        new RouterServiceRoute(
+          `${this.constructorName}Route${pattern}`,
+          {
+            store: this.kvStoreArn!,
+            routerNamespace: this.kvNamespace!,
+            pattern,
+            service,
+            routeArgs: args,
+          },
+          { provider: this.constructorOpts.provider },
+        );
+      },
+    );
+  }
+
+  /**
    * Add a route to a frontend or static site.
    *
    * @param pattern The path prefix to match for this route.
@@ -2991,6 +3171,26 @@ function setS3Origin(s3Domain, override) {
       signingBehavior: "always",
       signingProtocol: "sigv4",
       originType: "s3",
+    }
+  };
+  override = override ?? {};
+  if (override.connectionAttempts) {
+    origin.connectionAttempts = override.connectionAttempts;
+  }
+  if (override.timeouts) {
+    origin.timeouts = override.timeouts;
+  }
+  cf.updateRequestOrigin(origin);
+}
+
+function setVpcOrigin(domain, vpcOriginId, override) {
+  setForwardedHost();
+  const protocol = override?.protocol ?? "https-only";
+  const origin = {
+    domainName: domain,
+    vpcOriginConfig: {
+      vpcOriginId: vpcOriginId,
+      originProtocolPolicy: protocol,
     }
   };
   override = override ?? {};
