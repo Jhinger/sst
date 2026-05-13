@@ -45,15 +45,12 @@ export class RouterServiceRoute extends Component {
         const patternData = parsePattern(pattern);
         const namespace = buildKvNamespace(name);
 
-        // Get the load balancer from the service
         const lb = output(service.nodes.loadBalancer);
         const albArn = lb.arn;
         const albDnsName = lb.dnsName;
 
-        // Determine protocol
         const protocol = routeArgs?.protocol ?? "https-only";
 
-        // Create the VPC Origin
         const vpcOrigin = new cloudfront.VpcOrigin(
           `${name}VpcOrigin`,
           {
@@ -72,7 +69,6 @@ export class RouterServiceRoute extends Component {
           { parent: self },
         );
 
-        // Store the route metadata in KV
         createKvRouteData(name, args, self, namespace, {
           domain: albDnsName,
           vpcOriginId: vpcOrigin.id,
