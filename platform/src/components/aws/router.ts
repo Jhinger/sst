@@ -401,10 +401,10 @@ export interface RouterUrlRouteArgs extends RouteArgs {
      * The replacement for the matched path.
      */
     to: Input<string>;
-  }>;
+   }>;
   /**
    * The number of seconds that CloudFront waits for a response after routing a
-   * request to the destination. Must be between 1 and 60 seconds.
+   * request to the destination. Must be between 1 and 120 seconds.
    *
    * When compared to the `connectionTimeout`, this is the total time for the
    * request.
@@ -417,20 +417,20 @@ export interface RouterUrlRouteArgs extends RouteArgs {
    * }
    * ```
    */
-  readTimeout?: Input<DurationSeconds>;
-  /**
-   * The number of seconds that CloudFront should try to maintain the connection
-   * to the destination after receiving the last packet of the response. Must be
-   * between 1 and 60 seconds
-   * @default `"5 seconds"`
-   * @example
-   * ```js
-   * {
-   *   keepAliveTimeout: "10 seconds"
-   * }
-   * ```
-   */
-  keepAliveTimeout?: Input<DurationSeconds>;
+   readTimeout?: Input<DurationSeconds>;
+   /**
+    * The number of seconds that CloudFront should try to maintain the connection
+    * to the destination after receiving the last packet of the response. Must be
+    * between 1 and 120 seconds
+    * @default `"5 seconds"`
+    * @example
+    * ```js
+    * {
+    *   keepAliveTimeout: "10 seconds"
+    * }
+    * ```
+    */
+   keepAliveTimeout?: Input<DurationSeconds>;
 }
 
 export interface RouterBucketRouteArgs extends RouteArgs {
@@ -508,33 +508,33 @@ export interface RouterServiceRouteArgs extends RouteArgs {
    * }
    * ```
    */
-  protocol?: Input<"http-only" | "https-only" | "match-viewer">;
-  /**
-   * The number of seconds that CloudFront waits for a response after routing a
-   * request to the origin. Must be between 1 and 60 seconds.
-   *
-   * @default `"20 seconds"`
-   * @example
-   * ```js
-   * {
-   *   readTimeout: "60 seconds"
-   * }
-   * ```
-   */
-  readTimeout?: Input<DurationSeconds>;
-  /**
-   * The number of seconds that CloudFront should try to maintain the connection
-   * to the origin after receiving the last packet of the response. Must be
-   * between 1 and 60 seconds
-   * @default `"5 seconds"`
-   * @example
-   * ```js
-   * {
-   *   keepAliveTimeout: "10 seconds"
-   * }
-   * ```
-   */
-  keepAliveTimeout?: Input<DurationSeconds>;
+   protocol?: Input<"http-only" | "https-only" | "match-viewer">;
+   /**
+    * The number of seconds that CloudFront waits for a response after routing a
+    * request to the origin. Must be between 1 and 120 seconds.
+    *
+    * @default `"20 seconds"`
+    * @example
+    * ```js
+    * {
+    *   readTimeout: "60 seconds"
+    * }
+    * ```
+    */
+   readTimeout?: Input<DurationSeconds>;
+   /**
+    * The number of seconds that CloudFront should try to maintain the connection
+    * to the origin after receiving the last packet of the response. Must be
+    * between 1 and 120 seconds
+    * @default `"5 seconds"`
+    * @example
+    * ```js
+    * {
+    *   keepAliveTimeout: "10 seconds"
+    * }
+    * ```
+    */
+   keepAliveTimeout?: Input<DurationSeconds>;
 }
 
 export interface WafLoggingArgs {
@@ -3349,10 +3349,10 @@ export type RouterRouteArgs = {
      * The replacement for the matched path.
      */
     to: Input<string>;
-  }>;
+   }>;
   /**
    * The number of seconds that CloudFront waits for a response after routing a
-   * request to the destination. Must be between 1 and 60 seconds.
+   * request to the destination. Must be between 1 and 120 seconds.
    *
    * When compared to the `connectionTimeout`, this is the total time for the
    * request.
@@ -3368,20 +3368,20 @@ export type RouterRouteArgs = {
    */
   readTimeout?: Input<DurationSeconds>;
   /**
-   * The number of seconds that CloudFront should try to maintain the connection
-   * to the destination after receiving the last packet of the response. Must be
-   * between 1 and 60 seconds.
-   *
-   * @default `"5 seconds"`
-   * @example
-   * ```js
-   * router: {
-   *   instance: router,
-   *   keepAliveTimeout: "10 seconds"
-   * }
-   * ```
-   */
-  keepAliveTimeout?: Input<DurationSeconds>;
+    * The number of seconds that CloudFront should try to maintain the connection
+    * to the destination after receiving the last packet of the response. Must be
+    * between 1 and 120 seconds.
+    *
+    * @default `"5 seconds"`
+    * @example
+    * ```js
+    * router: {
+    *   instance: router,
+    *   keepAliveTimeout: "10 seconds"
+    * }
+    * ```
+    */
+   keepAliveTimeout?: Input<DurationSeconds>;
   /**
    * The number of seconds that CloudFront waits before timing out and closing the
    * connection to the origin. Must be between 1 and 10 seconds.
